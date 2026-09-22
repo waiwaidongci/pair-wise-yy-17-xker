@@ -1,162 +1,379 @@
+// 路由层：只做参数校验与「存储 + 规则」编排；阈值与判定见 lib/rules.js。
 const express = require('express');
-const fs = require('fs/promises');
 const path = require('path');
 
-const app = express();
 const config = require('./project.config');
+const store = require('./lib/storage');
+const R = require('./lib/rules');
+
+const app = express();
 const PORT = process.env.PORT || config.port || 3900;
-const DB_FILE = path.join(__dirname, 'data', 'db.json');
 
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-async function readDb() {
-  const raw = await fs.readFile(DB_FILE, 'utf8');
-  return JSON.parse(raw);
-}
-
-async function writeDb(db) {
-  await fs.writeFile(DB_FILE, JSON.stringify(db, null, 2) + '\n');
-}
-
-function stamp(action, note) {
-  return {
-    at: new Date().toISOString(),
-    action,
-    note: note || ''
-  };
-}
-
 function sortNewest(a, b) {
   return new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
+}
+
+function fail(status, error) {
+  return { status, error };
+}
+
+function iso(value) {
+  return value && !Number.isNaN(new Date(value).getTime()) ? new Date(value).toISOString() : null;
+}
+
+function finite(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function touch(item) {
+  item.updatedAt = R.nowIso();
+  return item;
+}
+
+function log(item, action, note) {
+  item.history = item.history || [];
+  item.history.unshift(R.stamp(action, note));
 }
 
 app.get('/api/config', (req, res) => {
   res.json(config);
 });
 
-app.get('/api/db', async (req, res) => {
-  const db = await readDb();
-  for (const key of Object.keys(db)) {
-    if (Array.isArray(db[key])) db[key].sort(sortNewest);
+app.get('/api/db', async (req, res, next) => {
+  try {
+    const db = await store.readDb();
+    for (const key of Object.keys(db)) {
+      if (Array.isArray(db[key])) db[key].sort(sortNewest);
+    }
+    res.json(db);
+  } catch (error) {
+    next(error);
   }
-  res.json(db);
 });
 
-app.post('/api/:collection', async (req, res) => {
-  const db = await readDb();
-  const { collection } = req.params;
-  if (!Array.isArray(db[collection])) return res.status(404).json({ error: 'unknown collection' });
-  const now = new Date().toISOString();
-  const item = {
-    id: `${collection}-${Date.now()}-${Math.random().toString(16).slice(2, 7)}`,
-    ...req.body,
-    createdAt: now,
-    updatedAt: now,
-    history: [stamp('创建', req.body.note || req.body.memo || '')]
+// ---------- 样点 ----------
+
+app.post('/api/points', (req, res, next) => {
+  store.withLock(async () => {
+    const db = await store.readDb();
+    const body = req.body || {};
+    if (!body.cave || !body.zone || !body.pointCode) throw fail(400, '洞穴、分区、采样点编号必填');
+    if (finite(body.baselineReading) === null) throw fail(400, '基准读数必须是数字');
+    const now = R.nowIso();
+    const item = {
+      id: R.newId('point'),
+      cave: body.cave,
+      zone: body.zone,
+      pointCode: body.pointCode,
+      bottlePrefix: body.bottlePrefix || '',
+      baselineReading: finite(body.baselineReading),
+      note: body.note || '',
+      createdAt: now,
+      updatedAt: now,
+      history: [R.stamp('创建', '凝结样点建档')]
+    };
+    db.points.push(item);
+    await store.writeDb(db);
+    res.status(201).json(item);
+  }).catch(next);
+});
+
+app.patch('/api/points/:id', (req, res, next) => {
+  store.withLock(async () => {
+    const db = await store.readDb();
+    const item = db.points.find((entry) => entry.id === req.params.id);
+    if (!item) throw fail(404, '样点不存在');
+    const body = req.body || {};
+    // 基准变更必须走重算专用接口，避免静默改写结论。
+    for (const key of ['cave', 'zone', 'pointCode', 'bottlePrefix', 'note']) {
+      if (body[key] !== undefined) item[key] = body[key];
+    }
+    touch(item);
+    log(item, '更新样点信息', body.reason || '');
+    await store.writeDb(db);
+    res.json(item);
+  }).catch(next);
+});
+
+// 基准变更：关联的未结束样单全部失效重算，旧版留档。
+app.patch('/api/samples/recalc-by-point/:pointId', (req, res, next) => {
+  store.withLock(async () => {
+    const db = await store.readDb();
+    const point = db.points.find((entry) => entry.id === req.params.pointId);
+    if (!point) throw fail(404, '样点不存在');
+    const baseline = finite(req.body?.baselineReading);
+    if (baseline === null) throw fail(400, '新基准读数必须是数字');
+    point.baselineReading = baseline;
+    touch(point);
+    log(point, '基准变更', `${baseline} μS/cm；${req.body?.reason || '无'}`);
+
+    const affected = [];
+    for (const sample of db.samples.filter((s) => s.pointId === point.id && s.status !== R.STATUS.RETURNED)) {
+      const before = { status: sample.status, conclusion: sample.conclusion };
+      const { archived, nextVersion } = R.archiveVersion(sample, `样点基准变更为 ${baseline} μS/cm：${req.body?.reason || '旧结论失效'}`);
+      sample.versions = archived;
+      sample.version = nextVersion;
+      const { sample: recalculated, qcReasons, reviewReasons } = R.evaluateSample(sample, point, db.samples, sample.labOperator);
+      Object.assign(sample, recalculated);
+      touch(sample);
+      log(sample, '基准变更重算', `${before.status} → ${sample.status}；${sample.conclusion}`);
+      affected.push({ id: sample.id, bottleNo: sample.bottleNo, status: sample.status, qcReasons, reviewReasons });
+    }
+    await store.writeDb(db);
+    res.json({ point, affected });
+  }).catch(next);
+});
+
+// ---------- 样单 ----------
+
+function normalizeSampleBody(body) {
+  return {
+    pointId: body.pointId,
+    bottleNo: String(body.bottleNo || '').trim(),
+    collectedAt: iso(body.collectedAt),
+    deployedAt: iso(body.deployedAt),
+    collector: String(body.collector || '').trim(),
+    reading: finite(body.reading),
+    bottleVolume: finite(body.bottleVolume),
+    headspaceVolume: finite(body.headspaceVolume),
+    headspacePct: finite(body.headspacePct),
+    calibratedAt: iso(body.calibratedAt),
+    sealField: String(body.sealField || '').trim(),
+    fieldNote: body.fieldNote || ''
   };
-  db[collection].push(item);
-  await writeDb(db);
-  res.status(201).json(item);
-});
-
-app.patch('/api/:collection/:id', async (req, res) => {
-  const db = await readDb();
-  const { collection, id } = req.params;
-  if (!Array.isArray(db[collection])) return res.status(404).json({ error: 'unknown collection' });
-  const item = db[collection].find((entry) => entry.id === id);
-  if (!item) return res.status(404).json({ error: 'not found' });
-  const historyAction = req.body.historyAction;
-  delete req.body.historyAction;
-  Object.assign(item, req.body, { updatedAt: new Date().toISOString() });
-  item.history = item.history || [];
-  if (historyAction || req.body.note || req.body.memo || req.body.status) {
-    item.history.unshift(stamp(historyAction || req.body.status || '更新', req.body.note || req.body.memo || ''));
-  }
-  await writeDb(db);
-  res.json(item);
-});
-
-app.delete('/api/:collection/:id', async (req, res) => {
-  const db = await readDb();
-  const { collection, id } = req.params;
-  if (!Array.isArray(db[collection])) return res.status(404).json({ error: 'unknown collection' });
-  const before = db[collection].length;
-  db[collection] = db[collection].filter((entry) => entry.id !== id);
-  if (db[collection].length === before) return res.status(404).json({ error: 'not found' });
-  await writeDb(db);
-  res.status(204).end();
-});
-
-app.post('/api/action/:actionId/:id', async (req, res) => {
-  const db = await readDb();
-  const action = config.actions.find((entry) => entry.id === req.params.actionId);
-  if (!action) return res.status(404).json({ error: 'unknown action' });
-  const item = db[action.collection]?.find((entry) => entry.id === req.params.id);
-  if (!item) return res.status(404).json({ error: 'not found' });
-  const result = runAction(db, action, item);
-  if (result.error) return res.status(409).json({ error: result.error });
-  await writeDb(db);
-  res.json(result.item);
-});
-
-function getValue(source, pathName) {
-  return pathName.split('.').reduce((value, key) => value?.[key], source);
 }
 
-function setValue(target, pathName, value) {
-  const keys = pathName.split('.');
-  let cursor = target;
-  while (keys.length > 1) {
-    const key = keys.shift();
-    cursor[key] = cursor[key] || {};
-    cursor = cursor[key];
-  }
-  cursor[keys[0]] = value;
+function validateSampleFields(data) {
+  if (!data.bottleNo) return '瓶号必填';
+  if (!data.collector) return '采集人必填';
+  if (!data.collectedAt || !data.deployedAt || !data.calibratedAt) return '采集、布放、校准时刻必填且须为有效时间';
+  if (new Date(data.deployedAt) >= new Date(data.collectedAt)) return '布放时刻必须早于采集时刻';
+  if (data.reading === null) return '读数必须是数字';
+  if (data.headspacePct === null) return '顶空占比必须是数字';
+  return null;
 }
 
-function findRelated(db, relation, item) {
-  return db[relation.collection]?.find((entry) => entry.id === item[relation.localKey]);
+// 登记：同一瓶号归还前只允许一份未结束样单；重复 / 并发沿用首次结果。
+app.post('/api/samples', (req, res, next) => {
+  store.withLock(async () => {
+    const db = await store.readDb();
+    const data = normalizeSampleBody(req.body || {});
+    const error = validateSampleFields(data);
+    if (error) throw fail(400, error);
+    const point = db.points.find((entry) => entry.id === data.pointId);
+    if (!point) throw fail(400, '请选择有效的采样点');
+
+    const existing = R.findOpenSample(db.samples, data.bottleNo);
+    if (existing) {
+      return res.json({ reused: true, item: existing, note: `瓶号 ${data.bottleNo} 已有未结束样单，沿用首次登记结果` });
+    }
+
+    const now = R.nowIso();
+    let item = {
+      id: R.newId('sample'),
+      ...data,
+      labEntered: false,
+      returned: false,
+      depositMass: null,
+      depositRate: null,
+      labOperator: '',
+      sealLab: '',
+      labNote: '',
+      reviewer: '',
+      reviewNote: '',
+      version: 1,
+      versions: [],
+      qcReasons: [],
+      reviewReasons: [],
+      createdAt: now,
+      updatedAt: now,
+      history: []
+    };
+    const evaluated = R.evaluateSample(item, point, db.samples);
+    item = { ...item, ...evaluated.sample };
+    log(item, '创建', `登记瓶号 ${item.bottleNo}`);
+    log(item, '采样质控', item.conclusion);
+    db.samples.push(item);
+    await store.writeDb(db);
+    res.status(201).json({ reused: false, item });
+  }).catch(next);
+});
+
+function getSample(db, id) {
+  const sample = db.samples.find((entry) => entry.id === id);
+  if (!sample) throw fail(404, '样单不存在');
+  const point = db.points.find((entry) => entry.id === sample.pointId);
+  return { sample, point };
 }
 
-function runAction(db, action, item) {
-  const related = action.relation ? findRelated(db, action.relation, item) : null;
-  const context = { item, related };
-  const levelRank = { '低': 1, '中': 2, '高': 3 };
-  for (const guard of action.guards || []) {
-    const left = getValue(context, guard.left);
-    const right = guard.rightPath ? getValue(context, guard.rightPath) : guard.right;
-    if (guard.op === 'missing' && left) continue;
-    if (guard.op === 'missing' && !left) return { error: guard.message };
-    if (guard.op === 'eq' && left !== right) return { error: guard.message };
-    if (guard.op === 'neq' && left === right) return { error: guard.message };
-    if (guard.op === 'gte' && Number(left) < Number(right)) return { error: guard.message };
-    if (guard.op === 'levelGte' && (levelRank[left] || 0) < (levelRank[right] || 0)) return { error: guard.message };
-    if (guard.op === 'notIn' && guard.values.includes(left)) return { error: guard.message };
+function guardStatus(sample, allowed) {
+  if (!allowed.includes(sample.status)) {
+    throw fail(409, `当前状态「${sample.status}」不能执行该操作`);
   }
-  for (const patch of action.patches || []) {
-    const target = patch.target === 'related' ? related : item;
-    if (!target) continue;
-    const next = patch.valuePath ? getValue(context, patch.valuePath) : patch.value;
-    setValue(target, patch.field, next);
-    target.updatedAt = new Date().toISOString();
-    target.history = target.history || [];
-    target.history.unshift(stamp(action.label, action.note || '状态流转'));
-  }
-  for (const delta of action.deltas || []) {
-    const target = delta.target === 'related' ? related : item;
-    if (!target) continue;
-    const sourceAmount = delta.amountPath ? Number(getValue(context, delta.amountPath)) : 1;
-    const multiplier = delta.amount === undefined ? 1 : Number(delta.amount);
-    const amount = sourceAmount * multiplier;
-    const current = Number(getValue({ target }, `target.${delta.field}`) || 0);
-    setValue(target, delta.field, current + amount);
-    target.updatedAt = new Date().toISOString();
-    target.history = target.history || [];
-    target.history.unshift(stamp(action.label, action.note || '数量调整'));
-  }
-  return { item };
 }
+
+// 重采样登记：沿用原瓶号，旧结论归档，质控重新判定。
+app.post('/api/samples/resample/:id', (req, res, next) => {
+  store.withLock(async () => {
+    const db = await store.readDb();
+    const { sample, point } = getSample(db, req.params.id);
+    guardStatus(sample, [R.STATUS.RESAMPLE]);
+    const data = normalizeSampleBody(req.body || {});
+    const error = validateSampleFields(data);
+    if (error) throw fail(400, error);
+    if (data.bottleNo && data.bottleNo !== sample.bottleNo) throw fail(409, '重采样必须沿用原瓶号');
+
+    const { archived, nextVersion } = R.archiveVersion(sample, '重采样登记：原采样结论失效');
+    Object.assign(sample, data, {
+      labEntered: false,
+      labOperator: '',
+      sealLab: '',
+      labNote: '',
+      depositMass: null,
+      depositRate: null,
+      reviewer: '',
+      reviewNote: '',
+      versions: archived,
+      version: nextVersion
+    });
+    const { sample: recalculated } = R.evaluateSample(sample, point, db.samples);
+    Object.assign(sample, recalculated);
+    touch(sample);
+    log(sample, '重采样登记', `采集人 ${sample.collector}；${sample.conclusion}`);
+    await store.writeDb(db);
+    res.json(sample);
+  }).catch(next);
+});
+
+// 送检录入：换人 + 封条 + 沉积质量；速率异常进复核。
+app.post('/api/samples/lab/:id', (req, res, next) => {
+  store.withLock(async () => {
+    const db = await store.readDb();
+    const { sample, point } = getSample(db, req.params.id);
+    guardStatus(sample, [R.STATUS.PASSED]);
+    const body = req.body || {};
+    const operator = String(body.labOperator || '').trim();
+    const sealLab = String(body.sealLab || '').trim();
+    const mass = finite(body.depositMass);
+    if (!operator) throw fail(400, '送检录入人必填');
+    if (operator === sample.collector) throw fail(409, `送检录入人 ${operator} 与采集人相同，须换人录入`);
+    if (!sealLab) throw fail(400, '送检封条号必填');
+    if (mass === null) throw fail(400, '沉积质量必须是数字');
+
+    Object.assign(sample, {
+      labEntered: true,
+      labOperator: operator,
+      sealLab,
+      depositMass: mass,
+      labNote: body.labNote || ''
+    });
+    const { sample: recalculated, reviewReasons } = R.evaluateSample(sample, point, db.samples, operator);
+    Object.assign(sample, recalculated);
+    touch(sample);
+    log(sample, '送检录入', `${operator} 录入封条 ${sealLab}、质量 ${mass} mg；${sample.conclusion}`);
+    if (reviewReasons.length) log(sample, '转复核', reviewReasons.join('；'));
+    await store.writeDb(db);
+    res.json(sample);
+  }).catch(next);
+});
+
+// 改采集/布放时刻或沉积质量：结论失效重算，旧版留档。
+app.patch('/api/samples/:id', (req, res, next) => {
+  store.withLock(async () => {
+    const db = await store.readDb();
+    const { sample, point } = getSample(db, req.params.id);
+    if (sample.status === R.STATUS.RETURNED) throw fail(409, '已归还样单不可变更');
+    const body = req.body || {};
+    const reason = String(body.reason || '').trim();
+
+    const changes = [];
+    if (body.collectedAt !== undefined || body.deployedAt !== undefined) {
+      const collectedAt = iso(body.collectedAt ?? sample.collectedAt);
+      const deployedAt = iso(body.deployedAt ?? sample.deployedAt);
+      if (!collectedAt || !deployedAt) throw fail(400, '采集与布放时刻须为有效时间');
+      if (new Date(deployedAt) >= new Date(collectedAt)) throw fail(400, '布放时刻必须早于采集时刻');
+      sample.collectedAt = collectedAt;
+      sample.deployedAt = deployedAt;
+      changes.push('采集/布放时刻');
+    }
+    if (body.depositMass !== undefined) {
+      if (!sample.labEntered) throw fail(409, '尚未送检录入，不能修改沉积质量');
+      const mass = finite(body.depositMass);
+      if (mass === null) throw fail(400, '沉积质量必须是数字');
+      sample.depositMass = mass;
+      changes.push('沉积质量');
+    }
+    if (body.labOperator !== undefined) {
+      const operator = String(body.labOperator || '').trim();
+      if (!operator) throw fail(400, '送检录入人必填');
+      if (operator === sample.collector) throw fail(409, '送检录入人不得与采集人相同');
+      sample.labOperator = operator;
+    }
+    if (!changes.length) throw fail(400, '没有可变更的字段（采集时刻 / 布放时刻 / 沉积质量）');
+
+    const { archived, nextVersion } = R.archiveVersion(sample, `${changes.join('、')}变更${reason ? `：${reason}` : '：旧结论失效'}`);
+    sample.versions = archived;
+    sample.version = nextVersion;
+    const beforeStatus = sample.status;
+    const { sample: recalculated } = R.evaluateSample(sample, point, db.samples, sample.labOperator);
+    Object.assign(sample, recalculated);
+    touch(sample);
+    log(sample, '变更重算', `${changes.join('、')}；${beforeStatus} → ${sample.status}`);
+    await store.writeDb(db);
+    res.json(sample);
+  }).catch(next);
+});
+
+// 复核通过：进入待归还。
+app.post('/api/samples/review-pass/:id', (req, res, next) => {
+  store.withLock(async () => {
+    const db = await store.readDb();
+    const { sample } = getSample(db, req.params.id);
+    guardStatus(sample, [R.STATUS.REVIEW]);
+    const reviewer = String(req.body?.reviewer || '').trim();
+    const reviewNote = String(req.body?.reviewNote || '').trim();
+    if (!reviewer || !reviewNote) throw fail(400, '复核人与复核意见必填');
+    sample.reviewer = reviewer;
+    sample.reviewNote = reviewNote;
+    sample.status = R.STATUS.DONE;
+    sample.conclusion = `复核通过（${reviewer}）：${reviewNote}`;
+    touch(sample);
+    log(sample, '复核通过', `${reviewer}：${reviewNote}`);
+    await store.writeDb(db);
+    res.json(sample);
+  }).catch(next);
+});
+
+// 归还瓶号：样单结束，瓶号可重新流转。
+app.post('/api/samples/return/:id', (req, res, next) => {
+  store.withLock(async () => {
+    const db = await store.readDb();
+    const { sample } = getSample(db, req.params.id);
+    guardStatus(sample, [R.STATUS.DONE]);
+    const returner = String(req.body?.returner || '').trim();
+    if (!returner) throw fail(400, '归还经手人必填');
+    sample.status = R.STATUS.RETURNED;
+    sample.returned = true;
+    sample.returner = returner;
+    sample.returnedAt = R.nowIso();
+    sample.conclusion = R.conclusionFor(R.STATUS.RETURNED, [], []);
+    touch(sample);
+    log(sample, '归还瓶号', `经手人 ${returner}`);
+    await store.writeDb(db);
+    res.json(sample);
+  }).catch(next);
+});
+
+// 统一错误返回：业务错误带 4xx 状态，其余 500。
+app.use((error, req, res, next) => {
+  if (error && error.status) return res.status(error.status).json({ error: error.error });
+  console.error(error);
+  res.status(500).json({ error: '服务器内部错误' });
+});
 
 app.listen(PORT, () => {
   console.log(`${config.title} running at http://localhost:${PORT}`);

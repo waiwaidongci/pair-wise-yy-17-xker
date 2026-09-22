@@ -1,42 +1,352 @@
 {
-  "sites": [
+  "points": [
     {
-      "id": "site-seed-1",
+      "id": "point-seed-1",
       "cave": "北麓三号洞",
-      "zone": "滴水帘区",
-      "pointCode": "D-07",
-      "route": "西线巡测",
-      "sensitivity": "高",
-      "protectedStatus": "重点保护",
-      "baselineTemp": 16.2,
-      "baselineHumidity": 92,
-      "baselineCo2": 680,
-      "note": "游客步道上方，滴水频率稳定",
-      "createdAt": "2026-06-14T08:00:00.000Z",
-      "updatedAt": "2026-06-14T08:00:00.000Z",
+      "zone": "凝结帘区",
+      "pointCode": "C-03",
+      "bottlePrefix": "B",
+      "baselineReading": 210,
+      "note": "凝结水富集点，滴速稳定，基准每月复标",
+      "createdAt": "2026-07-20T02:00:00.000Z",
+      "updatedAt": "2026-07-20T02:00:00.000Z",
       "history": [
-        { "at": "2026-06-14T08:00:00.000Z", "action": "创建", "note": "样点建档" }
+        [
+          "2026-07-20T02:00:00.000Z",
+          "创建",
+          "凝结样点建档"
+        ]
       ]
     }
   ],
-  "surveys": [
+  "samples": [
     {
-      "id": "survey-seed-1",
-      "siteId": "site-seed-1",
-      "surveyor": "沈宁",
-      "date": "2026-06-18",
-      "temperature": 17.4,
-      "humidity": 88,
-      "co2": 920,
-      "dripRate": 12,
-      "disturbance": "栏杆外侧有触碰痕迹",
-      "photoUrl": "",
-      "status": "异常待复查",
+      "pointId": "point-seed-1",
+      "bottleVolume": 100,
+      "reviewer": "",
       "reviewNote": "",
-      "createdAt": "2026-06-18T10:00:00.000Z",
-      "updatedAt": "2026-06-18T10:00:00.000Z",
+      "version": 1,
+      "versions": [],
+      "qcReasons": [],
+      "reviewReasons": [],
+      "id": "sample-seed-2233",
+      "bottleNo": "B-2233",
+      "collectedAt": "2026-09-20T08:00:00.000Z",
+      "deployedAt": "2026-09-12T08:00:00.000Z",
+      "collector": "黎澈",
+      "reading": 212,
+      "headspaceVolume": 4,
+      "headspacePct": 4,
+      "calibratedAt": "2026-09-20T07:40:00.000Z",
+      "sealField": "SF-7233",
+      "fieldNote": "凝结量正常",
+      "labEntered": true,
+      "returned": false,
+      "depositMass": 46.08,
+      "depositRate": 0.24,
+      "labOperator": "岑珩",
+      "sealLab": "SF-7233",
+      "labNote": "封条完好",
+      "status": "已完成",
+      "conclusion": "送检合格，待归还瓶号",
+      "createdAt": "2026-09-12T08:05:00.000Z",
+      "updatedAt": "2026-09-20T14:20:00.000Z",
       "history": [
-        { "at": "2026-06-18T10:00:00.000Z", "action": "创建", "note": "CO2升高并有干扰痕迹" }
+        {
+          "at": "2026-09-20T14:20:00.000Z",
+          "action": "送检录入",
+          "note": "岑珩 录入封条 SF-7233、质量 46.08 mg；送检合格，待归还瓶号"
+        },
+        {
+          "at": "2026-09-12T08:05:00.000Z",
+          "action": "采样质控",
+          "note": "采样合格，待送检"
+        },
+        {
+          "at": "2026-09-12T08:05:00.000Z",
+          "action": "创建",
+          "note": "登记瓶号 B-2233"
+        }
+      ]
+    },
+    {
+      "pointId": "point-seed-1",
+      "bottleVolume": 100,
+      "reviewer": "",
+      "reviewNote": "",
+      "version": 2,
+      "versions": [
+        {
+          "version": 1,
+          "status": "已完成",
+          "conclusion": "送检合格，待归还瓶号",
+          "depositRate": 0.2167,
+          "invalidReason": "沉积质量变更：天平复称由 52 mg 纠正为 45 mg，旧结论失效",
+          "invalidatedAt": "2026-09-19T09:10:00.000Z"
+        }
+      ],
+      "qcReasons": [],
+      "reviewReasons": [
+        "速率 0.1875 mg/h 较上瓶 B-2187（0.25 mg/h）下降 25.0%，超过 20%",
+        "封条不符：采集封条 SF-7710 ≠ 送检封条 SL-7710"
+      ],
+      "id": "sample-seed-2210",
+      "bottleNo": "B-2210",
+      "collectedAt": "2026-09-18T08:00:00.000Z",
+      "deployedAt": "2026-09-08T08:00:00.000Z",
+      "collector": "沈宁",
+      "reading": 211,
+      "headspaceVolume": 7,
+      "headspacePct": 7,
+      "calibratedAt": "2026-09-18T07:50:00.000Z",
+      "sealField": "SF-7710",
+      "fieldNote": "瓶身凝露较多",
+      "labEntered": true,
+      "returned": false,
+      "depositMass": 45,
+      "depositRate": 0.1875,
+      "labOperator": "岑珩",
+      "sealLab": "SL-7710",
+      "labNote": "封条号与采集记录不一致",
+      "status": "待复核",
+      "conclusion": "复核：速率 0.1875 mg/h 较上瓶 B-2187（0.25 mg/h）下降 25.0%，超过 20%；封条不符：采集封条 SF-7710 ≠ 送检封条 SL-7710",
+      "createdAt": "2026-09-08T08:05:00.000Z",
+      "updatedAt": "2026-09-19T09:10:00.000Z",
+      "history": [
+        {
+          "at": "2026-09-19T09:10:00.000Z",
+          "action": "变更重算",
+          "note": "沉积质量；已完成 → 待复核"
+        },
+        {
+          "at": "2026-09-19T09:10:00.000Z",
+          "action": "转复核",
+          "note": "速率 0.1875 mg/h 较上瓶 B-2187（0.25 mg/h）下降 25.0%，超过 20%；封条不符：采集封条 SF-7710 ≠ 送检封条 SL-7710"
+        },
+        {
+          "at": "2026-09-18T15:00:00.000Z",
+          "action": "送检录入",
+          "note": "岑珩 录入封条 SL-7710、质量 52 mg；送检合格，待归还瓶号"
+        },
+        {
+          "at": "2026-09-08T08:05:00.000Z",
+          "action": "采样质控",
+          "note": "采样合格，待送检"
+        },
+        {
+          "at": "2026-09-08T08:05:00.000Z",
+          "action": "创建",
+          "note": "登记瓶号 B-2210"
+        }
+      ]
+    },
+    {
+      "pointId": "point-seed-1",
+      "bottleVolume": 100,
+      "reviewer": "",
+      "reviewNote": "",
+      "version": 1,
+      "versions": [],
+      "qcReasons": [
+        "顶空占比 18% 超过 10%",
+        "校准距采集 52 分钟，超过 30 分钟"
+      ],
+      "reviewReasons": [],
+      "id": "sample-seed-2202",
+      "bottleNo": "B-2202",
+      "collectedAt": "2026-09-21T09:00:00.000Z",
+      "deployedAt": "2026-09-11T09:00:00.000Z",
+      "collector": "黎澈",
+      "reading": 214,
+      "headspaceVolume": 18,
+      "headspacePct": 18,
+      "calibratedAt": "2026-09-21T08:08:00.000Z",
+      "sealField": "SF-7202",
+      "fieldNote": "采样瓶倾斜，顶空偏大",
+      "labEntered": false,
+      "returned": false,
+      "depositMass": null,
+      "depositRate": null,
+      "labOperator": "",
+      "sealLab": "",
+      "labNote": "",
+      "status": "待重采",
+      "conclusion": "待重采：顶空占比 18% 超过 10%；校准距采集 52 分钟，超过 30 分钟",
+      "createdAt": "2026-09-21T09:05:00.000Z",
+      "updatedAt": "2026-09-21T09:05:00.000Z",
+      "history": [
+        {
+          "at": "2026-09-21T09:05:00.000Z",
+          "action": "采样质控",
+          "note": "待重采：顶空占比 18% 超过 10%；校准距采集 52 分钟，超过 30 分钟"
+        },
+        {
+          "at": "2026-09-21T09:05:00.000Z",
+          "action": "创建",
+          "note": "登记瓶号 B-2202"
+        }
+      ]
+    },
+    {
+      "pointId": "point-seed-1",
+      "bottleVolume": 100,
+      "reviewer": "",
+      "reviewNote": "",
+      "version": 1,
+      "versions": [],
+      "qcReasons": [],
+      "reviewReasons": [
+        "沉积质量为负",
+        "沉积速率 -0.005 mg/h 为负增长或零"
+      ],
+      "id": "sample-seed-2188",
+      "bottleNo": "B-2188",
+      "collectedAt": "2026-09-11T08:00:00.000Z",
+      "deployedAt": "2026-09-01T08:00:00.000Z",
+      "collector": "沈宁",
+      "reading": 209,
+      "headspaceVolume": 5,
+      "headspacePct": 5,
+      "calibratedAt": "2026-09-11T07:55:00.000Z",
+      "sealField": "SF-7188",
+      "fieldNote": "沉积层颜色偏浅",
+      "labEntered": true,
+      "returned": false,
+      "depositMass": -1.2,
+      "depositRate": -0.005,
+      "labOperator": "岑珩",
+      "sealLab": "SF-7188",
+      "labNote": "复称两次均为负值，疑瓶底有脱落",
+      "status": "待复核",
+      "conclusion": "复核：沉积质量为负；沉积速率 -0.005 mg/h 为负增长或零",
+      "createdAt": "2026-09-01T08:05:00.000Z",
+      "updatedAt": "2026-09-11T13:30:00.000Z",
+      "history": [
+        {
+          "at": "2026-09-11T13:30:00.000Z",
+          "action": "转复核",
+          "note": "沉积质量为负；沉积速率 -0.005 mg/h 为负增长或零"
+        },
+        {
+          "at": "2026-09-11T13:30:00.000Z",
+          "action": "送检录入",
+          "note": "岑珩 录入封条 SF-7188、质量 -1.2 mg；复核：沉积质量为负；沉积速率 -0.005 mg/h 为负增长或零"
+        },
+        {
+          "at": "2026-09-01T08:05:00.000Z",
+          "action": "采样质控",
+          "note": "采样合格，待送检"
+        },
+        {
+          "at": "2026-09-01T08:05:00.000Z",
+          "action": "创建",
+          "note": "登记瓶号 B-2188"
+        }
+      ]
+    },
+    {
+      "pointId": "point-seed-1",
+      "bottleVolume": 100,
+      "reviewer": "",
+      "reviewNote": "",
+      "version": 1,
+      "versions": [],
+      "qcReasons": [],
+      "reviewReasons": [],
+      "id": "sample-seed-2201",
+      "bottleNo": "B-2201",
+      "collectedAt": "2026-09-20T08:00:00.000Z",
+      "deployedAt": "2026-09-10T08:00:00.000Z",
+      "collector": "沈宁",
+      "reading": 211,
+      "headspaceVolume": 6,
+      "headspacePct": 6,
+      "calibratedAt": "2026-09-20T07:40:00.000Z",
+      "sealField": "SF-7201",
+      "fieldNote": "",
+      "labEntered": false,
+      "returned": false,
+      "depositMass": null,
+      "depositRate": null,
+      "labOperator": "",
+      "sealLab": "",
+      "labNote": "",
+      "status": "采样合格",
+      "conclusion": "采样合格，待送检",
+      "createdAt": "2026-09-20T08:10:00.000Z",
+      "updatedAt": "2026-09-20T08:10:00.000Z",
+      "history": [
+        {
+          "at": "2026-09-20T08:10:00.000Z",
+          "action": "采样质控",
+          "note": "采样合格，待送检"
+        },
+        {
+          "at": "2026-09-20T08:10:00.000Z",
+          "action": "创建",
+          "note": "登记瓶号 B-2201"
+        }
+      ]
+    },
+    {
+      "pointId": "point-seed-1",
+      "bottleVolume": 100,
+      "reviewer": "贺峋",
+      "reviewNote": "封条与质量记录齐全，速率平稳",
+      "version": 1,
+      "versions": [],
+      "qcReasons": [],
+      "reviewReasons": [],
+      "id": "sample-seed-2187",
+      "bottleNo": "B-2187",
+      "collectedAt": "2026-08-15T08:00:00.000Z",
+      "deployedAt": "2026-08-01T08:00:00.000Z",
+      "collector": "沈宁",
+      "reading": 212,
+      "headspaceVolume": 8,
+      "headspacePct": 8,
+      "calibratedAt": "2026-08-15T07:45:00.000Z",
+      "sealField": "SF-7187",
+      "fieldNote": "",
+      "labEntered": true,
+      "returned": true,
+      "depositMass": 84,
+      "depositRate": 0.25,
+      "labOperator": "岑珩",
+      "sealLab": "SF-7187",
+      "labNote": "",
+      "returner": "黎澈",
+      "returnedAt": "2026-08-20T06:30:00.000Z",
+      "status": "已归还",
+      "conclusion": "瓶号已归还，样单闭环",
+      "createdAt": "2026-08-01T08:05:00.000Z",
+      "updatedAt": "2026-08-20T06:30:00.000Z",
+      "history": [
+        {
+          "at": "2026-08-20T06:30:00.000Z",
+          "action": "归还瓶号",
+          "note": "经手人 黎澈"
+        },
+        {
+          "at": "2026-08-17T10:00:00.000Z",
+          "action": "复核通过",
+          "note": "贺峋：封条与质量记录齐全，速率平稳"
+        },
+        {
+          "at": "2026-08-15T14:00:00.000Z",
+          "action": "送检录入",
+          "note": "岑珩 录入封条 SF-7187、质量 84 mg；送检合格，待归还瓶号"
+        },
+        {
+          "at": "2026-08-01T08:05:00.000Z",
+          "action": "采样质控",
+          "note": "采样合格，待送检"
+        },
+        {
+          "at": "2026-08-01T08:05:00.000Z",
+          "action": "创建",
+          "note": "登记瓶号 B-2187"
+        }
       ]
     }
   ]
