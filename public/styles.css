@@ -309,6 +309,70 @@ main {
   border-radius: 8px;
 }
 
+.flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.reason {
+  margin: 8px 0;
+  color: var(--ink);
+  line-height: 1.6;
+}
+
+.action-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.action-form,
+.edit-form {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #faf7f0;
+  padding: 12px;
+}
+
+.edit-form {
+  margin-top: 10px;
+}
+
+.action-form h4,
+.edit-form h4 {
+  margin: 0 0 10px;
+}
+
+.versions summary {
+  color: var(--bad);
+  font-weight: 700;
+}
+
+.version-item {
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.version-conclusion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+details.history summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+details.history[open] summary {
+  margin-bottom: 8px;
+}
+
 .toast {
   position: fixed;
   right: 20px;
